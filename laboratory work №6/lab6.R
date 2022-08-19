@@ -48,12 +48,12 @@ clust_cacao <- hclust(dist_cacao, "ward.D")
 plot(clust_cacao)
 
 plot(clust_cacao, labels_cacao, cex = 0.5)
-rect.hclust(clust_cacao, k = 6, border="red")
+rect.hclust(clust_cacao, k = 3, border="red")
 
 # Шаг 2.6 - Разделим выборку на 3 кластера
 # Вектор groups содержит номер кластера,
 # в который попал классифицируемый объект 
-groups <- cutree(clust_cacao, k = 6) 
+groups <- cutree(clust_cacao, k = 3) 
 
 # Для каждой группы определяем средние значения характеристик и строим датафрейм
 
@@ -64,13 +64,13 @@ g2 <- colMeans(cacao_c[groups == 2, 1:2])
 #  в 3-ем кластере
 g3 <- colMeans(cacao_c[groups == 3, 1:2])
 #  в 4-ом кластере
-g4 <- colMeans(cacao_c[groups == 4, 1:2])
+# g4 <- colMeans(cacao_c[groups == 4, 1:2])
 #  в 5-ом кластере
-g5 <- colMeans(cacao_c[groups == 5, 1:2])
+# g5 <- colMeans(cacao_c[groups == 5, 1:2])
 #  в 6-ом кластере
-g6 <- colMeans(cacao_c[groups == 6, 1:2])
+# g6 <- colMeans(cacao_c[groups == 6, 1:2])
 
-df <- data.frame(g1, g2, g3, g4, g5, g6)
+df <- data.frame(g1, g2, g3) #, g4, g5, g6)
 
 df1 <- t(df)
 df <- t(df1)
@@ -104,3 +104,73 @@ xyplot(Rating ~ CocoaPercent, group = my_data$Group,
        data = my_data, auto.key = TRUE)
 
 boxplot(Rating ~ Group, data = my_data, frame = FALSE, col="green")
+
+# *** 6.2 ***
+
+library(klaR)
+
+# my_data$Rating <- as.factor(my_data$Rating)
+
+naive_cacao <- NaiveBayes(my_data$Group ~ ., data = my_data)
+naive_cacao$tables
+naive_cacao
+
+# ядерные функции плотности условной вероятности для таблицы
+
+opar <- par()
+layout(matrix(c(1,2), 1, 2, byrow = TRUE))
+plot(naive_cacao, lwd = 2, legendplot = TRUE)
+par <- opar
+
+# удалим столбец таблицы, содержащий классификацию,
+# и выполним классификацию по "новым данным
+
+pred <- predict(naive_cacao, my_data[, -3])$class
+table(Факт = my_data$Group, Прогноз = pred)
+
+# определение точности
+acc <- mean(pred == my_data$Group)
+acc 
+paste("Точность = ", round(100 * acc, 2), "%", sep="")
+
+# классификация Decision Tree
+
+# подготовка данных
+set.seed(1234)
+ind<-sample(2, nrow(my_data), replace=TRUE, prob=c(0.7, 0.3))
+trainData <- my_data[ind==1,]
+testData <- my_data[ind==2,]
+nrow(trainData)
+nrow(testData)
+nrow(my_data)
+
+# построение модели
+library(party)
+myFormula <- Group ~ CocoaPercent + Rating
+data_ctree <- ctree(myFormula, data = trainData)
+
+# обучение модели
+table(predict(data_ctree), trainData$Group)
+
+# визуализация
+plot(data_ctree)
+
+# применение модели
+test_predicted<-predict(data_ctree, newdata=testData)
+table(test_predicted, testData$Group)
+
+# алгоритм Random Forest
+
+# построение модели
+library(randomForest)
+
+rf <- randomForest(Group~.,data=trainData, ntree=100, proximity=TRUE)
+table(predict(rf), trainData$Group)
+
+# информация о модели
+print(rf)
+
+# альтернативная реализация
+library(party)
+cf <- cforest(Group~., data=trainData, control=cforest_unbiased(mtry=2,ntree=100))
+table(predict(cf), trainData$Group)
